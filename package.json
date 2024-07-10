@@ -1,0 +1,17 @@
+{
+  "name": "youtube-clone",
+  "version": "1.0.0",
+  "description": "A backend Application of YouTube Clone with Nodejs Express And MongoDB",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "NodeJs",
+    "Express",
+    "JavaScript",
+    "MongoDB"
+  ],
+  "author": "Ghufran Butt",
+  "license": "ISC"
+}

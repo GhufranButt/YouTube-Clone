@@ -1,6 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import apiError from "../utils/apiError.js";
 const userSchema = new mongoose.Schema(
   {
     username: {
@@ -49,7 +50,11 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 userSchema.pre("save", async function (next) {
-  if (!this.isModified(this.password)) return next();
+  if (!this.isModified("password")) return next();
+  const passwordRegex = /^.{8,}$/;
+  if (!passwordRegex.test(this.password))
+    return next(new apiError(400, "password must be atleast 8 charcters long"));
+
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });

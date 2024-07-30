@@ -2,6 +2,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import apiError from "../utils/apiError.js";
 import { User } from "../models/user.models.js";
 import uploadOnCloudinary from "../utils/cloudinary.js";
+import { v2 as cloudinary } from "cloudinary";
 import { ApiResponse } from "../utils/apiResponse.js";
 import jwt from "jsonwebtoken";
 const generateAccessAndRefreshTokens = async (userId) => {
@@ -53,7 +54,7 @@ const registerUser = asyncHandler(async (req, res) => {
   if (existingUser) {
     throw new apiError(409, "This user is Already Exist");
   }
-  const avatarLocalPath = req.files?.avatar[0]?.path;
+  const avatarLocalPath = req.files.avatar[0]?.path;
   // console.log("Filess...", req.files.avatar);
   // const coverImageLoacalPath = req.files?.coverImage[0]?.path;
   // console.log("Filess...2", coverImageLoacalPath);
@@ -81,8 +82,19 @@ const registerUser = asyncHandler(async (req, res) => {
   // console.log("==============", avatarLocalPath);
   const user = await User.create({
     fullName,
-    avatar: avatar.url,
-    coverImage: coverImage?.url || "",
+    avatar: {
+      url: avatar.url,
+      public_id: avatar.public_id,
+    },
+    coverImage: coverImage
+      ? {
+          url: coverImage.url,
+          public_id: coverImage.public_id,
+        }
+      : {
+          url: "",
+          public_id: "",
+        },
     email,
     password,
     username: username.toLowerCase(),
@@ -91,8 +103,6 @@ const registerUser = asyncHandler(async (req, res) => {
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
-  console.log(createdUser);
-
   if (!createdUser) {
     throw new apiError(500, "Something went wrong while registering the user");
   }
@@ -132,6 +142,8 @@ const loginUser = asyncHandler(async (req, res) => {
   const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
+
+  console.log("-------->", loggedInUser);
 
   const options = {
     httpOnly: true,
@@ -219,7 +231,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         new ApiResponse(
           200,
           { accessToken, refresToken: newRefreshToken },
-          "Access Token refreshed "
+          "Access Token refreshed successfully"
         )
       );
   } catch (error) {
@@ -228,7 +240,10 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
-  const { oldPassword, newPassword } = req.body;
+  const { oldPassword, newPassword, confPassword } = req.body;
+  if (!(newPassword === confPassword)) {
+    throw new apiError(400, "New password and confirm password does not match");
+  }
   const user = await User.findById(req.user?._id);
   const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
 
@@ -269,6 +284,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
+  const oldAvatar = req.user.avatar.public_id;
   const avatarLocalPath = req.file?.path;
   if (!avatarLocalPath) {
     throw new apiError(400, "Avatar image is required");
@@ -281,7 +297,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findByIdAndUpdate(
-    re.user?._id,
+    req.user?._id,
     {
       $set: {
         avatar: avatar.url,
@@ -290,12 +306,18 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     { new: true }
   ).select("-password");
 
+  if (oldAvatar) {
+    await cloudinary.uploader.destroy(oldAvatar);
+  }
+
   return res
     .status(200)
     .json(new ApiResponse(200, user, "avatar is successfully updated"));
 });
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
+  const oldCoverImage = req.user.coverImage?.public_id;
+  console.log("08876544", oldCoverImage);
   const coverImageLocalPath = req.file?.path;
   if (!coverImageLocalPath) {
     throw new apiError(400, "Cover Image image is required");
@@ -308,7 +330,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findByIdAndUpdate(
-    re.user?._id,
+    req.user?._id,
     {
       $set: {
         coverImage: coverImage.url,
@@ -316,6 +338,9 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     },
     { new: true }
   ).select("-password");
+  if (oldCoverImage) {
+    await cloudinary.uploader.destroy(oldCoverImage);
+  }
 
   return res
     .status(200)
